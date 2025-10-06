@@ -6,6 +6,26 @@ import (
 	"strings"
 )
 
+func isToken(str []byte) bool {
+	for _, ch := range str {
+		found := false
+		if ch >= 'A' && ch <= 'Z' ||
+			ch >= 'a' && ch <= 'z' ||
+			ch >= '0' && ch <= '9' {
+			found = true
+		}
+		switch ch {
+		case '!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~':
+			found = true
+		}
+
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
 func parseHeader(fieldLine []byte) (string, string, error) {
 	parts := bytes.SplitN(fieldLine, []byte(":"), 2)
 	if len(parts) != 2 {
@@ -39,7 +59,13 @@ func (h *Headers) Get(name string) string {
 }
 
 func (h *Headers) Set(name, value string) {
-	h.headers[strings.ToLower(name)] = value
+	name = strings.ToLower(name)
+
+	if v, ok := h.headers[name]; ok {
+		h.headers[name] = fmt.Sprintf("%s,%s", v, value)
+	} else {
+		h.headers[name] = value
+	}
 }
 
 func (h *Headers) Parse(data []byte) (int, bool, error) {
@@ -62,6 +88,10 @@ func (h *Headers) Parse(data []byte) (int, bool, error) {
 		name, value, err := parseHeader(data[read : read+idx])
 		if err != nil {
 			return 0, false, err
+		}
+
+		if !isToken([]byte(name)) {
+			return 0, false, fmt.Errorf("malformed header name")
 		}
 		read += idx + len(rn)
 		h.Set(name, value)
